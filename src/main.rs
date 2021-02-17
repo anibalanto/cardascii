@@ -11,7 +11,7 @@ use rand::seq::SliceRandom;
 use termion::event::Key;
 use termion::color;
 
-use cast::{u16};
+use cast::{u8, u16};
 
 use gameboard::{Board, ResourceTable, Cell, Game, InputListener, Cursor, Position,
                 CellUpdates, InfoLayout, Info};
@@ -66,7 +66,7 @@ macro_rules! mover_primer_carta {
     )
 }
 
-fn particular_item( from: & mut Vec<u8>, pos: usize ) -> Option<u8>{
+fn particular_item( from: & Vec<u8>, pos: usize ) -> Option<u8>{
     match from.get(pos) {
         Some(c) => {
             Some(*c)
@@ -123,9 +123,9 @@ impl/*<'a>*/ Mazo/*<'a>*/ {
     fn new() -> Self {
         let mut me = Mazo {
             cartas : Vec::</*&*/Carta>::new(),
-            dorso : str_dorso()
+            dorso : card_str_back()
         };
-        load_cards(& mut me);
+        load_cards_str_front(& mut me);
         me
     }
     
@@ -216,7 +216,7 @@ impl<R: Read, W: Write> InputListener<R, W> for App {
     
                     mostrar_descarte_jugador!(& mut self.player1_cards, x, self.visible_cards, updates, 1, 1);
                     for i in 0..8 {
-                        mostrar_opt_carta!(particular_item(& mut self.player1_cards, i), updates, 2, i);
+                        mostrar_opt_carta!(particular_item(& self.player1_cards, i), updates, 2, i);
                     }
                     game.update_cells(updates);
                 }
@@ -231,9 +231,9 @@ impl<R: Read, W: Write> InputListener<R, W> for App {
 }
 
 impl App {
-    fn new() -> Self {
+    fn new(mazo: &Mazo) -> Self {
         App {
-            hidden_cards: (0..50).collect(),
+            hidden_cards: (0..mazo.cartas.len() as u8).collect(),
             visible_cards: Vec::<u8>::new(),
             player1_cards: Vec::<u8>::new(),
             player2_cards: Vec::<u8>::new(),
@@ -246,7 +246,7 @@ impl App {
     }
 
     fn reset(&mut self) {
-        self.hidden_cards = (0..50).collect();
+        self.hidden_cards = (0..self.hidden_cards.len() as u8).collect();
         self.visible_cards.clear();
         self.player1_cards.clear();
         self.player2_cards.clear();
@@ -274,11 +274,10 @@ impl App {
     fn process_user_turn(&mut self) -> Option<CellUpdates> {
         let mut opt_updates: Option<CellUpdates> = None;
         if self.turn_num == 0 {
-            self.turn_num += 1;
             opt_updates = Some(self.dar_cartas());
         } else {
-            let Position(x, y) = self.cursor_position;
-            if self.get(x, y) == CELL_EMPTY {
+            if self.player1_cards.len() < 8 {
+                let Position(x, y) = self.cursor_position;
                 // Add X to the cell. This is user's turn.
                 self.set(x, y, CELL_X);
                 
@@ -287,12 +286,13 @@ impl App {
                     if x == 1 && y == 1 { Some(& mut self.visible_cards) } else
                     { None };
                 
-                let mut updates = CellUpdates::with_capacity(1);
-                match from {
+                opt_updates = match from {
                     Some(cards_from) => {
+                        let mut updates = CellUpdates::with_capacity(1);
                         mostrar_dar_carta_jugador!(cards_from, self.player1_cards, updates, 2);
+                        Some(updates)
                     },
-                    None => ()
+                    None => None
                 };
                 
                 /*if self.is_user_win() {
@@ -303,10 +303,10 @@ impl App {
                     // Computer makes turn.
                     self.make_turn(&mut updates);
                 }*/
-                self.turn_num += 1;
-                opt_updates = Some(updates);
             }
+            
         }
+        self.turn_num += 1;
         opt_updates
     }
 
@@ -494,10 +494,12 @@ fn main() {
     let stdout = io::stdout();
     let stdout = stdout.lock();
 
-    let app = Rc::new(RefCell::new(App::new()));
+    let mazo = Mazo::new();
+
+    let app = Rc::new(RefCell::new(App::new(&mazo)));
     let game = Rc::new(RefCell::new(Game::new(stdin, stdout, Rc::clone(&app))));
 
-    let mazo = Mazo::new();
+    
 
     while !app.borrow().exit {
         app.borrow_mut().reset();
@@ -521,7 +523,7 @@ fn main() {
     }
 }
 
-fn str_dorso() -> String{
+fn card_str_back() -> String{
     make_str_card!(
         r#"┌────────────┐"#,
         r#"│╳╳╳╳╳╳╳╳╳╳╳╳│"#,
@@ -534,15 +536,15 @@ fn str_dorso() -> String{
         r#"└────────────┘"#)
 }
 
-fn load_cards(mazo : & mut Mazo) {
+fn load_cards_str_front(mazo : & mut Mazo) {
     mazo.agregar(Palo::Comodin, 0, make_str_card!(
         r#"┌────────────┐"#,
         r#"│J    o   o  │"#,
         r#"│O  o |\  |\ │"#,
-        r#"│K  |\/_|/_| │"#,
-        r#"│E |;  x  o| │"#,
-        r#"│R  \    _|  │"#,
-        r#"│   | `-/    │"#,
+        r#"│K  |\/ |/ | │"#,
+        r#"│E  ʕ  ͡o  ͡o| │"#,
+        r#"│R  °\   ͜ʖ / │"#,
+        r#"│     |   /  │"#,
         r#"│            │"#,
         r#"└────────────┘"#)
     );
@@ -550,28 +552,28 @@ fn load_cards(mazo : & mut Mazo) {
         r#"┌────────────┐"#,
         r#"│J    o   o  │"#,
         r#"│O  o |\  |\ │"#,
-        r#"│K  |\/_|/_| │"#,
-        r#"│E |;  x  o| │"#,
-        r#"│R  \    _|  │"#,
-        r#"│   | `-/    │"#,
+        r#"│K  |\/ |/ | │"#,
+        r#"│E  ʕ  ͡o  ͡o| │"#,
+        r#"│R  °\   ͜ʖ / │"#,
+        r#"│     |   /  │"#,
         r#"│            │"#,
         r#"└────────────┘"#)
     );
     mazo.agregar(Palo::Espada, 12, make_str_card!(
         r#"┌──  ────  ──┐"#,
-        r#"│12  /┼^^^^\ │"#,
-        r#"│|\ (o_.o   )│"#,
+        r#"│12  /^^^┼^\ │"#,
+        r#"│|\ (  ° ͜ʖ° )│"#,
         r#"│ \\ \     / │"#,
-        r#"│ _\\_-&---\ │"#,
-        r#"│   B .@.   \│"#,
-        r#"│  /  |@|    │"#,
-        r#"│ /   |@|  12│"#,
+        r#"│ _\\_---&-\ │"#,
+        r#"│   B   .@. \│"#,
+        r#"│  /    |@|  │"#,
+        r#"│ /     |@|12│"#,
         r#"└──  ────  ──┘"#)
     );
     mazo.agregar(Palo::Espada, 11, make_str_card!(
         r#"┌──  ────  ──┐"#,
-        r#"│11    ┌─@──┐│"#,
-        r#"│|\    (o_ o)│"#,
+        r#"│11    ┌──@─┐│"#,
+        r#"│|\    (° ͜ʖ°)│"#,
         r#"│ \\   /    \│"#,
         r#"│ _\\_D__D   │"#,
         r#"│   B(o  o)__│"#,
@@ -581,9 +583,9 @@ fn load_cards(mazo : & mut Mazo) {
     );
     mazo.agregar(Palo::Espada, 10, make_str_card!(
         r#"┌──  ────  ──┐"#,
-        r#"│10   ┌@───┐ │"#,
+        r#"│10   ┌───@┐ │"#,
         r#"│     │____│ │"#,
-        r#"│ |\  (o_ o) │"#,
+        r#"│ |\  (° ͜ʖ°) │"#,
         r#"│  \\ /    \ │"#,
         r#"│  _\\_    / │"#,
         r#"│    B \  /B │"#,
@@ -691,19 +693,19 @@ fn load_cards(mazo : & mut Mazo) {
     );
     mazo.agregar(Palo::Basto, 12, make_str_card!(
         r#"┌─  ──  ──  ─┐"#,
-        r#"│12  /┼^^^^\ │"#,
-        r#"│.-.(o_.o   )│"#,
+        r#"│12  /^^^┼^\ │"#,
+        r#"│.-.(  ° ͜ʖ° )│"#,
         r#"│(  )\     / │"#,
-        r#"│ ( )/-&---\ │"#,
-        r#"│  () .@.   \│"#,
-        r#"│  /  |@|    │"#,
-        r#"│ /   |@|  12│"#,
+        r#"│ ( )/---&-\ │"#,
+        r#"│  ()   .@. \│"#,
+        r#"│  /    |@|  │"#,
+        r#"│ /     |@|12│"#,
         r#"└─  ──  ──  ─┘"#)
     );
     mazo.agregar(Palo::Basto, 11, make_str_card!(
         r#"┌─  ──  ──  ─┐"#,
-        r#"│11    ┌─@──┐│"#,
-        r#"│.-.   (o_ o)│"#,
+        r#"│11    ┌──@─┐│"#,
+        r#"│.-.   (° ͜ʖ°)│"#,
         r#"│(  )  /    \│"#,
         r#"│ ( ) D__D   │"#,
         r#"│  ()(o  o)__│"#,
@@ -713,9 +715,9 @@ fn load_cards(mazo : & mut Mazo) {
     );
     mazo.agregar(Palo::Basto, 10, make_str_card!(
         r#"┌─  ──  ──  ─┐"#,
-        r#"│10   ┌@───┐ │"#,
+        r#"│10   ┌───@┐ │"#,
         r#"│.-.  │____│ │"#,
-        r#"│(  ) (o_ o) │"#,
+        r#"│(  ) (° ͜ʖ°) │"#,
         r#"│ ( ) /    \ │"#,
         r#"│  ()/\    / │"#,
         r#"│      \  /B │"#,
@@ -824,19 +826,19 @@ fn load_cards(mazo : & mut Mazo) {
 
     mazo.agregar(Palo::Oro, 12, make_str_card!(
         r#"┌────────────┐"#,
-        r#"│12  /┼^^^^\ │"#,
-        r#"│   (o_.o   )│"#,
+        r#"│12  /^^^┼^\ │"#,
+        r#"│   (  ° ͜ʖ° )│"#,
         r#"│ .-.\     / │"#,
-        r#"│( O )-&---\ │"#,
-        r#"│B`-` .@.   \│"#,
-        r#"│  /  |@|    │"#,
-        r#"│ /   |@|  12│"#,
+        r#"│( O )---&-\ │"#,
+        r#"│B`-`   .@. \│"#,
+        r#"│  /    |@|  │"#,
+        r#"│ /     |@|12│"#,
         r#"└────────────┘"#)
     );
     mazo.agregar(Palo::Oro, 11, make_str_card!(
         r#"┌────────────┐"#,
-        r#"│11    ┌─@──┐│"#,
-        r#"│ .-.  (o_ o)│"#,
+        r#"│11    ┌──@─┐│"#,
+        r#"│ .-.  (° ͜ʖ°)│"#,
         r#"│( O ) /    \│"#,
         r#"│ `-` D__D   │"#,
         r#"│    (o  o)__│"#,
@@ -846,9 +848,9 @@ fn load_cards(mazo : & mut Mazo) {
     );
     mazo.agregar(Palo::Oro, 10, make_str_card!(
         r#"┌────────────┐"#,
-        r#"│10   ┌@───┐ │"#,
+        r#"│10   ┌───@┐ │"#,
         r#"│     │____│ │"#,
-        r#"│ .-. (o_ o) │"#,
+        r#"│ .-. (° ͜ʖ°) │"#,
         r#"│( O )/    \ │"#,
         r#"│ `-` \    / │"#,
         r#"│      \  /B │"#,
@@ -956,19 +958,19 @@ fn load_cards(mazo : & mut Mazo) {
     );
     mazo.agregar(Palo::Copa, 12, make_str_card!(
         r#"┌────    ────┐"#,
-        r#"│12  /┼^^^^\ │"#,
-        r#"│   (o_.o   )│"#,
+        r#"│12  /^^^┼^\ │"#,
+        r#"│   (  ° ͜ʖ° )│"#,
         r#"│ ___\     / │"#,
-        r#"│(___)-&---\ │"#,
-        r#"│B\_/ .@.   \│"#,
-        r#"│  /  |@|    │"#,
-        r#"│ /   |@|  12│"#,
+        r#"│(___)---&-\ │"#,
+        r#"│B\_/   .@. \│"#,
+        r#"│  /    |@|  │"#,
+        r#"│ /     |@|12│"#,
         r#"└────    ────┘"#)
     );
     mazo.agregar(Palo::Copa, 11, make_str_card!(
         r#"┌────    ────┐"#,
-        r#"│11    ┌─@──┐│"#,
-        r#"│ ___  (o_ o)│"#,
+        r#"│11    ┌──@─┐│"#,
+        r#"│ ___  (° ͜ʖ°)│"#,
         r#"│(___) /    \│"#,
         r#"│ \_/ D__D   │"#,
         r#"│    (o  o)__│"#,
@@ -978,9 +980,9 @@ fn load_cards(mazo : & mut Mazo) {
     );
     mazo.agregar(Palo::Copa, 10, make_str_card!(
         r#"┌────    ────┐"#,
-        r#"│10   ┌@───┐ │"#,
+        r#"│10   ┌───@┐ │"#,
         r#"│     │____│ │"#,
-        r#"│ ___ (o_ o) │"#,
+        r#"│ ___ (° ͜ʖ°) │"#,
         r#"│(___)/    \ │"#,
         r#"│ \_/ \    / │"#,
         r#"│      \  /B │"#,
